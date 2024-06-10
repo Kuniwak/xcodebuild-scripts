@@ -1,0 +1,88 @@
+#!/bin/bash
+set -euo pipefail
+
+BASE_DIR="$(cd "$(dirname "$0")"; pwd)"
+
+
+has() {
+	local cmd="$1"
+	which "$cmd" >/dev/null 2>&1
+}
+
+
+echo-stderr() {
+	local message="$*"
+	printf "%s\n" "$message" 1>&2
+}
+
+
+throw() {
+	local message="$*"
+	echo-stderr "error: $message"
+	false
+}
+
+
+usage() {
+	cat - 1>&2 <<EOS
+usage: test [<options>] <scheme> <os> <device> [<log-file>] [<junit-xml>]
+
+Run tests on the specified devices
+
+OPTIONS
+	-h, --help    print this usage
+
+EXAMPLES
+	$ ./test "example" 'iOS-17-' 'iPhone SE'
+EOS
+}
+
+
+usage-error() {
+	local message="$*"
+	echo-stderr "$message"
+	usage
+	false
+}
+
+
+main() {
+	local scheme="${1:-}"
+	local os="${2:-}"
+	local device="${3:-}"
+	local logfile="${4:-/dev/null}"
+	local junit_xml="${5:-/dev/null}"
+
+	[[ -n "$scheme" ]] || usage-error "no scheme specified"
+	[[ -n "$os" ]] || usage-error "no OS specified"
+	[[ -n "$device" ]] || usage-error "no device specified"
+
+	has jq || throw "jq required but seems not installed. See https://jqlang.github.io/jq/download/"
+	has xcpretty || throw "xcpretty required but seems not installed. See https://github.com/xcpretty/xcpretty"
+	
+	local udid
+	udid="$("${BASE_DIR}/select-device" "$os" "$device")"
+	echo "UDID: ${udid}"
+
+	local logdir
+	logdir="$(dirname "$logfile")"
+	mkdir -p "$logdir"
+
+	xcodebuild test \
+		-scheme "$scheme" \
+		-destination "id=${udid}" \
+		-skipPackagePluginValidation \
+		-skipMacroValidation \
+		-skipPackageSignatureValidation | tee "$logfile" | xcpretty --report junit
+
+	cp "${BASE_DIR}/build/reports/junit.xml" "$junit_xml"
+}
+
+
+case "$*" in
+	--help | -h)
+		usage
+		false ;;
+	*)
+		main "$@" ;;
+esac

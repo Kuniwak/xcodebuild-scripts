@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+
+has() {
+	local cmd="$1"
+	which "$cmd" >/dev/null 2>&1
+}
+
+
+echo-stderr() {
+	local message="$*"
+	printf "%s\n" "$message" 1>&2
+}
+
+
+throw() {
+	local message="$*"
+	echo-stderr "error: $message"
+	false
+}
+
+
+usage() {
+	cat - 1>&2 <<EOS
+usage: list-devices [<options>]
+
+List device informations.
+
+OPTIONS
+	-h, --help    print this usage
+
+EXAMPLE
+	$ ./list-devices
+	iOS-17-2        iPhone SE (3rd generation)      E52F4060-8786-4122-94B3-87C81DEDB0AA    Shutdown
+	...
+EOS
+}
+
+
+usage-error() {
+	local message="$*"
+	echo-stderr "$message"
+	usage
+	false
+}
+
+
+main() {
+	has jq || throw "jq required but seems not installed. See https://jqlang.github.io/jq/download/"
+	
+	xcrun simctl list devices -j | jq -r "[.devices | to_entries[] | (.key | ltrimstr(\"com.apple.CoreSimulator.SimRuntime.\")) as \$os | .value | map({os: \$os, name: .name, udid: .udid, state: .state})[]] | sort_by(.os, .name, .state, .udid) | reverse[] | [.os, .name, .state, .udid] | @tsv"
+}
+
+
+case "$*" in
+	--help | -h)
+		usage
+		false ;;
+	*)
+		main "$@" ;;
+esac

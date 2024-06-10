@@ -1,0 +1,68 @@
+#!/bin/bash
+set -euo pipefail
+
+
+has() {
+	local cmd="$1"
+	which "$cmd" >/dev/null 2>&1
+}
+
+
+echo-stderr() {
+	local message="$*"
+	printf "%s\n" "$message" 1>&2
+}
+
+
+throw() {
+	local message="$*"
+	echo-stderr "error: $message"
+	false
+}
+
+
+usage() {
+	cat - 1>&2 <<EOS
+usage: select-device [<options>] <os> <device>
+
+Write UDID that matches the specified OS and Device name
+
+OPTIONS
+	-h, --help    print this usage
+
+EXAMPLE
+	$ ./select-device iOS-17- iPhone
+	846C496B-0320-497C-BF3C-1B80E9C3A474
+	...
+EOS
+}
+
+
+usage-error() {
+	local message="$*"
+	echo-stderr "$message"
+	usage
+	false
+}
+
+
+main() {
+	local os="${1:-}"
+	local device="${2:-}"
+
+	has jq || throw "jq required but seems not installed. See https://jqlang.github.io/jq/download/"
+	
+	local udid
+	udid="$(xcrun simctl list devices -j | jq -r "[.devices | to_entries[] | (.key | ltrimstr(\"com.apple.CoreSimulator.SimRuntime.\")) as \$os | .value | map({os: \$os, name: .name, udid: .udid, state: .state})[]] | map(select(.os | startswith(\"${os}\"))) | map(select(.name | startswith(\"${device}\"))) | sort_by(.os, .name, .state, .udid) | reverse[0].udid")"
+	[[ "$udid" != "null" ]] || throw "no such device"
+	echo "$udid"
+}
+
+
+case "$*" in
+	--help | -h)
+		usage
+		false ;;
+	*)
+		main "$@" ;;
+esac
