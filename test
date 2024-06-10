@@ -75,7 +75,7 @@ main() {
 		-skipMacroValidation \
 		-skipPackageSignatureValidation | tee "$logfile" | xcpretty --report junit
 
-	cp "${BASE_DIR}/build/reports/junit.xml" "$junit_xml"
+	cp "./build/reports/junit.xml" "$junit_xml"
 }
 
 
