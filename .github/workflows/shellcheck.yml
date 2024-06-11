@@ -22,7 +22,3 @@ jobs:
         uses: reviewdog/action-shellcheck@6e3a862f231c6895fbd335b70adef8f9243d5762 # v1.21.0
         with:
           reporter: github-pr-review
-          path: |
-            test
-            list-devices
-            select-device
